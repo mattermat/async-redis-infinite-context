@@ -1,4 +1,4 @@
-import asyncio 
+import asyncio
 
 from stream import Stream
 

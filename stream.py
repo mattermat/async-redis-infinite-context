@@ -9,6 +9,7 @@ class Stream:
         self.r = await aioredis.create_redis(
             'redis://localhost'
         )
+        self.running = True
         return self
 
     async def __aexit__(self, exception_type, exception, traceback):
@@ -17,17 +18,15 @@ class Stream:
     async def __aiter__(self):
         return self
 
+    def stop(self) -> None:
+        self.running = False
+
     async def read(self):
-        res = await self.r.xread(
-            [self.stream_name],
-            count=1
-        )
-
-        while res:
-            for row in res:
-                yield row
-
+        while self.running:
             res = await self.r.xread(
                 [self.stream_name],
                 count=1
             )
+
+            for row in res:
+                yield row
