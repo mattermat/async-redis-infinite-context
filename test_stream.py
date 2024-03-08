@@ -18,28 +18,33 @@ async def redis():
 @pytest.mark.asyncio
 async def test_run_gathered(redis):
     async def _main():
+        values = []
         async with Stream('test_stream_1') as s:
             async for value in s.read():
-                # print(value)
-                return(value)
+                try:
+                    values.append(value)
+                except asyncio.CancelledError:
+                    return value
 
     async def _checker():
         await asyncio.sleep(.1)
-        a = await redis.xadd('test_stream_1', {'x': 1})
-        # print(a)
-        await redis.xadd('test_stream_1', {'x': 2})
-        return a
+        expected_res = []
+        for i in range(5):
+            expected_res.append(await redis.xadd('test_stream_1', {'x': i}))
+        return expected_res
 
-    res = await asyncio.gather(_checker(), _main())
-    assert res[1][0] == b'test_stream_1'
-    assert res[1][1] == res[0]
-    assert res[1][2] == {b'x': b'1'}
+    check_task = asyncio.create_task(_checker())
+    stream_task = asyncio.create_task(_main())
 
+    expected_res = await check_task
+    print(expected_res)
 
-def test_myoutput(capsys):
-    print('ciao')
-    captured = capsys.readouterr()
-    assert captured.out == 'ciao\n'
-    print('next')
-    captured = capsys.readouterr()
-    assert captured.out == 'next\n'
+    res = stream_task.cancel()
+
+    print(stream_task)
+    print(res)
+    #print(await res)
+    #res, expected_res = await asyncio.gather(_main(), _checker())
+
+    for r in res:
+        assert r == expected_res[r] 

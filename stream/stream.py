@@ -1,3 +1,4 @@
+from __future__ import annotations
 import aioredis  # type: ignore
 from typing import Dict
 from typing import AsyncGenerator
@@ -13,6 +14,7 @@ class Stream:
             'redis://localhost'
         )
         self.running = True
+        self.q = asyncio.Queue()
         return self
 
     async def __aexit__(self, exception_type: str, exception: str, traceback: str) -> None:
@@ -24,7 +26,14 @@ class Stream:
     def stop(self) -> None:
         self.running = False
 
-    async def read(self) -> AsyncGenerator[bytes, bytes]:
+    async def read(self):
+        self.task = asyncio.create_task(self._read_task())
+
+        while True:
+            item = await self.q.get()
+            yield item
+
+    async def _read_task(self) -> AsyncGenerator[bytes, bytes]:
         while self.running:
             res = await self.r.xread(
                 [self.stream_name],
@@ -32,4 +41,4 @@ class Stream:
             )
 
             for row in res:
-                yield row
+                self.q.put(row)
